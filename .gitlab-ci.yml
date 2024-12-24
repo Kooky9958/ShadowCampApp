@@ -1,0 +1,41 @@
+# GitLab CI/CD config for GQE90 system
+
+default:
+  image: alpine:latest
+
+stages:
+  - build
+  - deploy
+
+build:
+  stage: build
+  before_script:
+    - apk add rsync
+  script:
+    - rsync -r $CI_PROJECT_DIR/.gitlab-ci/data/host_configs/production/  $CI_PROJECT_DIR/
+    - rm -rf $CI_PROJECT_DIR/.git*
+    - mkdir gl_build
+    - tar -czvf gl_build/sc_gqe90_glci_$CI_BUILD_REF.tar.gz -C $CI_PROJECT_DIR .
+  artifacts:
+    name: "$CI_JOB_NAME-$CI_COMMIT_REF_SLUG"
+    paths:
+      - gl_build
+    expire_in: 1 week
+
+deploy_production:
+  stage: deploy
+  dependencies:
+    - build
+  before_script:
+    - apk add ansible openssh-client wget
+    - echo "$ssh_glrunner_key_priv" > /tmp/cnz_w3_sshprivkey
+    - chmod u=rwX,go-rwx /tmp/cnz_w3_sshprivkey
+    - cat /tmp/cnz_w3_sshprivkey
+  script:
+    - ansible-playbook $CI_PROJECT_DIR/.gitlab-ci/ansible/playbooks/deploy.yml --extra-vars="host_user=gqglr host_hostname=production archive_path=$CI_PROJECT_DIR/gl_build/sc_gqe90_glci_$CI_BUILD_REF.tar.gz" --inventory=$CI_PROJECT_DIR/.gitlab-ci/ansible/inventory --private-key=/tmp/cnz_w3_sshprivkey --ssh-extra-args="-o StrictHostKeyChecking=no" -vvv
+
+  environment:
+    name: production
+    url: https://gqe.shadow.camp
+  only:
+    - host/production
