@@ -1,0 +1,52 @@
+# Ansible playbook - Deploy GQE90
+# author: David Foley dev@dfoley.ie
+#
+# variables:
+# host_hostname = Which host would you like to provision the website on?
+# host_user = What user should we connect to the host as ? (This user should have sudo privileges)
+# archive_path = What is the path to the website .tar.gz archive
+
+- hosts: '{{ host_hostname }}'
+  gather_facts: yes
+  remote_user: '{{ host_user }}'
+  become: yes
+
+  tasks:
+  - name: Copy over source
+    unarchive: src='{{ archive_path }}' dest=/srv/www/public/gqe90/ owner=root group=apache mode="u=rwX,g=rwX,o=rX"
+
+  - name: Change file ownership and permissions
+    file:
+      path: /srv/www/public/gqe90/
+      recurse: true
+      owner: root
+      group: apache
+      mode: 'g+rwX'
+
+  - name: npm install
+    command: 
+      cmd: npm install
+      chdir: /srv/www/public/gqe90/
+
+  - name: npm run build
+    command: 
+      cmd: npm run build
+      chdir: /srv/www/public/gqe90/
+
+  - name: composer update
+    command: 
+      cmd: composer update -n -v
+      chdir: /srv/www/public/gqe90/
+
+  - name: composer install
+    command: 
+      cmd: composer install -n -v
+      chdir: /srv/www/public/gqe90/
+
+  - name: php artisan migrate
+    command: 
+      cmd: php artisan migrate --force -n
+      chdir: /srv/www/public/gqe90/
+
+  - name: Restart Apache
+    service: name=httpd state=restarted
