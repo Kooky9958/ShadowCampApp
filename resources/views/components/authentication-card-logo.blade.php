@@ -1,0 +1,1 @@
+<img src="/assets/shadowcamp_logo.png" alt="Shadow Camp Logo" {{ $attributes }} />
